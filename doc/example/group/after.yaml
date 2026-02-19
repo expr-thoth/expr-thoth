@@ -1,0 +1,19 @@
+Meta:
+  ID: 1004
+  Name: 后置测试策略
+  Enabled: true
+  GrayCount: 10000
+  Priority: 100
+  Owner: lizec
+  Description: |
+    无论前置策略执行情况如何, 后置策略始终保证执行
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_group_test'
+    ThenList:
+      - Sys.Log('Do After Policy')
+Action:
+  - Name: 写入后置策略标记
+    When: true
+    ThenList:
+      - Rsp.SetMsg('after_policy', 'done')

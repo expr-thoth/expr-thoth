@@ -1,0 +1,32 @@
+Meta:
+  ID: 2602212147
+  Name: 实例策略
+  Enabled: true
+  GrayCount: 10000
+  Priority: 100
+  Owner: lizec
+  Description: |
+    描述文本可以多行吗?
+    这里可以写多行描述
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'user_login_check'
+    ThenList:
+      - Sys.Log('User Login Check')
+Action:
+  - Name: 加载角色信息
+    When: true
+    ThenList:
+      - Sys.SetVar('VarRole', Req.Attrs['role'])
+  - Name: 输出
+    WhenAll:
+      - VarRole == 'admin'
+      - Req.UserId == 'alan turing'
+    ThenList:
+      - Sys.Log('Welcome, admin!')
+      - Sys.Return()
+  - Name: 兜底分支
+    When: true
+    ThenList:
+      - Sys.Log('Access Denied')
+      - Sys.Return()

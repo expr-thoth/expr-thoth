@@ -1,0 +1,16 @@
+Meta:
+  ID: 1001
+  Name: 非启用策略测试
+  Enabled: false
+  GrayCount: 10000
+  Priority: 100
+  Owner: lizec
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_group_test'
+Action:
+  - Name: 写入策略信息
+    When: true
+    ThenList:
+      - Sys.Log('Disable Policy Triggered')
+      - Rsp.SetMsg('disable_policy', '1')

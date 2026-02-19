@@ -1,0 +1,16 @@
+Meta:
+  ID: 1001
+  Name: 低优先级测试实例
+  Enabled: true
+  GrayCount: 10000
+  Priority: 500
+  Owner: lizec
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_group_test'
+Action:
+  - Name: 写入策略信息
+    When: true
+    ThenList:
+      - Sys.Log('Policy02 Triggered')
+      - Rsp.SetMsg('policy_result2', '1')

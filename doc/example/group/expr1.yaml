@@ -1,0 +1,34 @@
+Meta:
+  ID: 1001
+  Name: 高优先级测试实例
+  Enabled: true
+  GrayCount: 10000
+  Priority: 1000
+  Owner: lizec
+  Description: |
+    先执行高优先级策略，再执行低优先级策略
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_group_test'
+    ThenList:
+      - Sys.Log('Policy01 Triggered')
+      - Sys.SetVar('VarControlType', Req.Attrs['ControlType'])
+      - Sys.SetVar('VarRole', Req.Attrs['role'])
+Action:
+  - Name: 执行业务逻辑
+    WhenAll:
+      - VarRole == 'admin'
+      - Req.UserId == 'alan turing'
+    ThenList:
+      - Sys.Log('Welcome, admin!')
+      - Rsp.SetMsg('policy_result', 'welcome admin')
+      - Sys.Return()
+  - Name: 兜底分支
+    When: true
+    ThenList:
+      - Sys.Log('Access Denied')
+      - Rsp.SetMsg('policy_result', 'access denied')
+  - Name: ExitGroup判断
+    When: VarControlType == 'exit_group'
+    ThenList:
+      - Sys.ExitGroup()      

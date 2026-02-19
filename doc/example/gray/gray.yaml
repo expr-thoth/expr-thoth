@@ -1,0 +1,16 @@
+Meta:
+  ID: 1002
+  Name: 灰度策略测试
+  Enabled: true
+  GrayCount: 200
+  Priority: 100
+  Owner: lizec
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_group_test'
+Action:
+  - Name: 写入策略信息
+    When: true
+    ThenList:
+      - Sys.Log('Gray Policy Triggered')
+      - Rsp.SetMsg('gray_policy', '1')

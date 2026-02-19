@@ -1,0 +1,23 @@
+Meta:
+  ID: 1001
+  Name: 前置测试策略
+  Enabled: true
+  GrayCount: 10000
+  Priority: 100
+  Description: |
+    先执行前置策略, 可验证是否能正常终止后续策略的执行
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_group_test'
+    ThenList:
+      - Sys.Log('Before Policy Triggered')
+      - Sys.SetVar('VarControlType', Req.Attrs['ControlType'])
+Action:
+  - Name: Halt判断
+    When: VarControlType == 'halt'
+    ThenList:
+      - Sys.Halt()
+  - Name: 兜底分支
+    When: true
+    ThenList:
+      - Rsp.SetMsg('before_policy_not_halt', '1')
