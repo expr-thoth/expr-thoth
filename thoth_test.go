@@ -68,6 +68,21 @@ func TestThoth(t *testing.T) {
 
 }
 
+func BenchmarkThothBase(b *testing.B) {
+	thoth := MakeBaseGroupThoth()
+
+	req := &testutil.Request{
+		Event:  "event_group_test",
+		UserId: "alan turing",
+		Attrs:  map[string]string{"role": "admin"},
+	}
+
+	
+	for b.Loop() {
+		thoth.Execute(req)
+	}
+}
+
 func TestHalt(t *testing.T) {
 	thoth := MakeBaseGroupThoth()
 
