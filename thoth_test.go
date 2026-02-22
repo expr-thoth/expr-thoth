@@ -2,6 +2,7 @@ package thoth_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	thoth "github.com/expr-thoth/expr-thoth"
@@ -76,11 +77,36 @@ func BenchmarkThothBase(b *testing.B) {
 		UserId: "alan turing",
 		Attrs:  map[string]string{"role": "admin"},
 	}
+	// thoth.Execute(req)
 
-	
+	b.ResetTimer()
 	for b.Loop() {
 		thoth.Execute(req)
 	}
+}
+
+func BenchmarkThothC(b *testing.B) {
+	var wg sync.WaitGroup
+	thoth := MakeBaseGroupThoth()
+
+	req := &testutil.Request{
+		Event:  "event_group_test",
+		UserId: "alan turing",
+		Attrs:  map[string]string{"role": "admin"},
+	}
+	thoth.Execute(req)
+
+	b.ResetTimer()
+	for b.Loop() {
+		wg.Add(1)
+		// 直接Go实际上性能相当好, 优于手动控制协程+通道发送数据
+		go func() {
+			defer wg.Done()
+			thoth.Execute(req)
+		}()
+	}
+
+	wg.Wait()
 }
 
 func TestHalt(t *testing.T) {

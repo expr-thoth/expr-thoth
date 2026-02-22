@@ -47,11 +47,7 @@ func (e *Executor) Exec(groupName string, req core.Request, rsp *core.Response) 
 		return nil, fmt.Errorf("group %s not found", groupName)
 	}
 
-	policyGroup, ok := raw.(*PolicyGroup)
-	if !ok {
-		// 类型错误属于编程错误, 直接panic暴露问题
-		panic(fmt.Sprintf("group %s is not PolicyGroup type", groupName))
-	}
+	policyGroup := raw.(*PolicyGroup)
 
 	state := core.DefaultThothState
 	for _, policyFile := range policyGroup.policyFiles {
