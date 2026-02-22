@@ -6,3 +6,5 @@ type ThothState struct {
 	IsExitGroup bool
 	IsHalt      bool
 }
+
+var DefaultThothState = &ThothState{}

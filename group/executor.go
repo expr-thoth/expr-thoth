@@ -53,16 +53,18 @@ func (e *Executor) Exec(groupName string, req core.Request, rsp *core.Response) 
 		panic(fmt.Sprintf("group %s is not PolicyGroup type", groupName))
 	}
 
-	// 每个分组使用单独的执行器, 以保证状态隔离
-	exector := file.NewExecutor(e.ctx, e.cmp)
+	state := core.DefaultThothState
 	for _, policyFile := range policyGroup.policyFiles {
+		// 每个文件使用单独的执行器, 以保证状态隔离
+		exector := file.NewExecutor(e.ctx, e.cmp)
+
 		err := exector.Exec(policyFile, req, rsp)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("group %v with err: %v", policyGroup.Name, err))
 			// 执行错误继续执行后续策略, 以保证单个策略错误不影响整体策略执行
 		}
 
-		state := exector.GetState()
+		state = exector.GetState()
 		if state.IsExitGroup {
 			// 结束整个分组的执行, 重置ExitGroup状态, 直接返回当前状态结果
 			state.IsExitGroup = false
@@ -70,6 +72,6 @@ func (e *Executor) Exec(groupName string, req core.Request, rsp *core.Response) 
 		}
 	}
 
-	// 注意: 由于产生错误依然继续执行, 因此返回前需要收集
-	return exector.GetState(), errors.Join(errs...)
+	// 注意: 由于产生错误依然继续执行, 因此返回前需要收集已经产生的错误并一同返回
+	return state, errors.Join(errs...)
 }
