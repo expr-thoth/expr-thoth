@@ -23,6 +23,9 @@ type PolicyFileMeta struct {
 	IsAsync     bool   `yaml:"IsAsync"`
 	Owner       string `yaml:"Owner"`
 	Description string `yaml:"Description"`
+
+	// 业务扩展字段, 可关联任意与策略文件相关的额外信息
+	Tag map[string]any
 }
 
 // 策略文件中的Filter和Action结构基本相同, Filter模块主要用于条件判断, 不支持Return的执行流控制. Action模型用于执行具体的逻辑, 支持全部操作
