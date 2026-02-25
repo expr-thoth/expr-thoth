@@ -155,6 +155,18 @@ func (f *PolicyFile) Exec(cmp *statement.Compiler, req core.Request, rsp *core.R
 				return state, nil
 			}
 		}
+
+		if len(action.ThenGroup) > 0 {
+			tasks := make([]Task, 0, len(action.ThenGroup))
+			for _, then := range action.ThenGroup {
+				t := then
+				tasks = append(tasks, func() error {
+					// 并发执行不支持执行流控制, 因此无需检查状态
+					return cmp.RunWithoutRst(t, env)
+				})
+			}
+			GoAndWait(tasks...)
+		}
 	}
 
 	return f.getState(env), nil

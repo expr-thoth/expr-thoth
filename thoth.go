@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sync/atomic"
 
 	"github.com/expr-thoth/expr-thoth/core"
@@ -86,7 +87,7 @@ func (t *Thoth) Execute(ctx context.Context, req core.Request) (*core.Response, 
 
 	rsp := &core.Response{}
 	errs := []error{}
-	asyncFiles := make([]*PolicyFile, 0, 0)
+	asyncFiles := make([]*PolicyFile, 0)
 	for _, g := range groups {
 		state, files, err := t.executor.Exec(ctx, g, req, rsp)
 		if err != nil {
@@ -122,7 +123,11 @@ func (t *Thoth) Execute(ctx context.Context, req core.Request) (*core.Response, 
 	newCtx := context.WithoutCancel(ctx)
 	asyncPolicyPool.Submit(func() {
 		for _, policyFile := range asyncFiles {
-			defer recoverPanic(newCtx, t.options.logger)
+			defer func() {
+				if r := recover(); r != nil {
+					t.options.logger.ErrorMetrics(ctx, "Thoth.Panic", "msg: %v\nstack: %v\n", r, string(debug.Stack()))
+				}
+			}()
 
 			env := MakeEnv(newCtx)
 			_, err := policyFile.Exec(t.options.cmp, req, rsp, env)
