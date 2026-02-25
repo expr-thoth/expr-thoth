@@ -2,7 +2,6 @@ package thoth_test
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	thoth "github.com/expr-thoth/expr-thoth"
@@ -27,8 +26,7 @@ func MakeGroupTestConfig() []router.RouteConfig {
 }
 
 func MakeBaseGroupThoth() *thoth.Thoth {
-	ctx := context.Background()
-	thothIns := thoth.NewThoth(ctx, thoth.WithBeforePolicy("beforeGroup"), thoth.WithAfterPolicy("afterGroup"))
+	thothIns := thoth.NewThoth(thoth.WithBeforePolicy("beforeGroup"), thoth.WithAfterPolicy("afterGroup"))
 
 	thothIns.RegisterRouteMap(MakeGroupTestConfig())
 
@@ -46,6 +44,7 @@ func MakeBaseGroupThoth() *thoth.Thoth {
 }
 
 func TestThoth(t *testing.T) {
+	ctx := context.Background()
 	thoth := MakeBaseGroupThoth()
 
 	req := &testutil.Request{
@@ -54,7 +53,7 @@ func TestThoth(t *testing.T) {
 		Attrs:  map[string]string{"role": "admin"},
 	}
 
-	rsp, err := thoth.Execute(req)
+	rsp, err := thoth.Execute(ctx, req)
 	if err != nil {
 		t.Fatalf("Failed to execute policy: %v", err)
 	}
@@ -66,47 +65,8 @@ func TestThoth(t *testing.T) {
 
 }
 
-func BenchmarkThothBase(b *testing.B) {
-	thoth := MakeBaseGroupThoth()
-
-	req := &testutil.Request{
-		Event:  "event_group_test",
-		UserId: "alan turing",
-		Attrs:  map[string]string{"role": "admin"},
-	}
-	// thoth.Execute(req)
-
-	b.ResetTimer()
-	for b.Loop() {
-		thoth.Execute(req)
-	}
-}
-
-func BenchmarkThothC(b *testing.B) {
-	var wg sync.WaitGroup
-	thoth := MakeBaseGroupThoth()
-
-	req := &testutil.Request{
-		Event:  "event_group_test",
-		UserId: "alan turing",
-		Attrs:  map[string]string{"role": "admin"},
-	}
-	thoth.Execute(req)
-
-	b.ResetTimer()
-	for b.Loop() {
-		wg.Add(1)
-		// 直接Go实际上性能相当好, 优于手动控制协程+通道发送数据
-		go func() {
-			defer wg.Done()
-			thoth.Execute(req)
-		}()
-	}
-
-	wg.Wait()
-}
-
 func TestHalt(t *testing.T) {
+	ctx := context.Background()
 	thoth := MakeBaseGroupThoth()
 
 	req := &testutil.Request{
@@ -115,7 +75,7 @@ func TestHalt(t *testing.T) {
 		Attrs:  map[string]string{"role": "admin", "ControlType": "halt"},
 	}
 
-	rsp, err := thoth.Execute(req)
+	rsp, err := thoth.Execute(ctx, req)
 	if err != nil {
 		t.Fatalf("Failed to execute policy: %v", err)
 	}
@@ -127,6 +87,7 @@ func TestHalt(t *testing.T) {
 }
 
 func TestExitGroup(t *testing.T) {
+	ctx := context.Background()
 	thoth := MakeBaseGroupThoth()
 
 	req := &testutil.Request{
@@ -134,7 +95,7 @@ func TestExitGroup(t *testing.T) {
 		Attrs: map[string]string{"role": "admin", "ControlType": "exit_group"},
 	}
 
-	rsp, err := thoth.Execute(req)
+	rsp, err := thoth.Execute(ctx, req)
 	if err != nil {
 		t.Fatalf("Failed to execute policy: %v", err)
 	}
@@ -146,8 +107,7 @@ func TestExitGroup(t *testing.T) {
 }
 
 func MakeGrayGroupThoth() *thoth.Thoth {
-	ctx := context.Background()
-	thothIns := thoth.NewThoth(ctx)
+	thothIns := thoth.NewThoth()
 
 	thothIns.RegisterRouteMap(MakeGroupTestConfig())
 	disable := testutil.LoadExampleTestPolicyFile("doc/example/gray/disable.yaml")
@@ -159,6 +119,7 @@ func MakeGrayGroupThoth() *thoth.Thoth {
 }
 
 func TestDisable(t *testing.T) {
+	ctx := context.Background()
 	thoth := MakeGrayGroupThoth()
 
 	req := &testutil.Request{
@@ -167,7 +128,7 @@ func TestDisable(t *testing.T) {
 		Attrs:     map[string]string{"role": "admin", "ControlType": "exit_group"},
 	}
 
-	rsp, err := thoth.Execute(req)
+	rsp, err := thoth.Execute(ctx, req)
 	if err != nil {
 		t.Fatalf("Failed to execute policy: %v", err)
 	}
@@ -177,6 +138,7 @@ func TestDisable(t *testing.T) {
 }
 
 func TestGray(t *testing.T) {
+	ctx := context.Background()
 	thoth := MakeGrayGroupThoth()
 
 	req := &testutil.Request{
@@ -185,7 +147,7 @@ func TestGray(t *testing.T) {
 		Attrs:     map[string]string{"role": "admin", "ControlType": "exit_group"},
 	}
 
-	rsp, err := thoth.Execute(req)
+	rsp, err := thoth.Execute(ctx, req)
 	if err != nil {
 		t.Fatalf("Failed to execute policy: %v", err)
 	}

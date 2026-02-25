@@ -6,12 +6,12 @@ require gopkg.in/yaml.v3 v3.0.1
 
 require (
 	github.com/expr-lang/expr v1.17.8
+	github.com/panjf2000/ants/v2 v2.11.5
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/panjf2000/ants/v2 v2.11.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 )
