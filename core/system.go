@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/expr-thoth/expr-thoth/core/ds"
@@ -12,21 +11,21 @@ type System struct {
 	Map   ds.Map
 	Slice ds.Slice
 
-	ctx   context.Context
-	state *ThothState
-	env   map[string]any
+	ctx    context.Context
+	state  *ThothState
+	env    map[string]any
 }
 
 func NewSystem(ctx context.Context, state *ThothState, env map[string]any) *System {
 	return &System{
-		ctx:   ctx,
-		state: state,
-		env:   env,
+		ctx:    ctx,
+		state:  state,
+		env:    env,
 	}
 }
 
 func (s *System) Log(args ...any) bool {
-	fmt.Println(args...)
+	// fmt.Println(args...)
 	return true
 }
 

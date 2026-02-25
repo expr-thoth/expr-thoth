@@ -1,8 +1,11 @@
-package core
+package thoth
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/expr-thoth/expr-thoth/core"
+	"github.com/expr-thoth/expr-thoth/statement"
 	"gopkg.in/yaml.v3"
 )
 
@@ -85,4 +88,79 @@ func NewPolicyFile(yamlStr string) (*PolicyFile, error) {
 	}
 
 	return &policyFile, nil
+}
+
+// Exec 执行单个策略文件
+// 如果文件中存在错误, 则立刻返回, 不继续执行后续的内容
+func (f *PolicyFile) Exec(cmp *statement.Compiler, req core.Request, rsp *core.Response, env map[string]any) (*core.ThothState, error) {
+	// 策略未启用不执行
+	if f == nil || f.Meta.Enabled == false {
+		return core.DefaultThothState, nil
+	}
+
+	// 灰度不满足不执行
+	if req.GetGrayCount() > f.Meta.GrayCount {
+		return core.DefaultThothState, nil
+	}
+
+	env["Req"] = req
+	env["Rsp"] = rsp
+
+	for _, filter := range f.Filter {
+		fVal, err := cmp.RunAsBool(filter.When, env)
+		if err != nil {
+			return nil, fmt.Errorf("exec filter When with err:%v", err)
+		}
+
+		// 过滤条件不满足不执行后续动作
+		if !fVal {
+			return core.DefaultThothState, nil
+		}
+
+		// 满足条件执行ThenList中的代码
+		for _, then := range filter.ThenList {
+			err := cmp.RunWithoutRst(then, env)
+			if err != nil {
+				return nil, fmt.Errorf("exec filter ThenList with err:%v", err)
+			}
+
+			// Filter不支持Return等操作, 因此不检查
+		}
+
+	}
+
+	for _, action := range f.Action {
+		aVal, err := cmp.RunAsBool(action.When, env)
+		if err != nil {
+			return nil, fmt.Errorf("exec action When with err: %v", err)
+		}
+
+		if !aVal {
+			// Action条件不满足时, 仅不执行当前Action的ThenList
+			continue
+		}
+
+		for _, then := range action.ThenList {
+			err := cmp.RunWithoutRst(then, env)
+			if err != nil {
+				return nil, fmt.Errorf("exec action ThenList with err: %v", err)
+			}
+
+			// 终止状态检测
+			state := f.getState(env)
+			if state.IsReturn || state.IsExitGroup || state.IsHalt {
+				// 结束当前策略文件的执行, 重置Return状态
+				// 由上层的执行器判断是否继续执行分组内的其他策略文件
+				state.IsReturn = false
+				return state, nil
+			}
+		}
+	}
+
+	return f.getState(env), nil
+}
+
+// // 获取当前执行器的状态, 供外部查询
+func (e *PolicyFile) getState(env map[string]any) *core.ThothState {
+	return env["ThothState"].(*core.ThothState)
 }

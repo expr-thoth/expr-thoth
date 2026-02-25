@@ -3,15 +3,15 @@ package testutil
 import (
 	"os"
 
-	"github.com/expr-thoth/expr-thoth/core"
+	thoth "github.com/expr-thoth/expr-thoth"
 )
 
-func LoadExampleTestPolicyFile(name string) *core.PolicyFile {
+func LoadExampleTestPolicyFile(name string) *thoth.PolicyFile {
 	yamlStr, err := os.ReadFile(name)
 	if err != nil {
 		panic("Failed to read YAML file: " + err.Error())
 	}
-	policyFile, err := core.NewPolicyFile(string(yamlStr))
+	policyFile, err := thoth.NewPolicyFile(string(yamlStr))
 	if err != nil {
 		panic("Failed to load YAML: " + err.Error())
 	}

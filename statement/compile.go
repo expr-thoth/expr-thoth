@@ -1,7 +1,7 @@
 package statement
 
 import (
-	"context"
+	"fmt"
 	"sync"
 
 	"github.com/expr-lang/expr"
@@ -10,15 +10,7 @@ import (
 
 // Compiler 负责将表达式字符串编译成可执行的程序, 并提供缓存机制以提高性能
 type Compiler struct {
-	ctx   context.Context
 	cache sync.Map
-}
-
-// NewCompiler 创建一个新的 Compiler 实例, 需要传入上下文对象以便在编译过程中进行日志记录等操作
-func NewCompiler(ctx context.Context) *Compiler {
-	return &Compiler{
-		ctx: ctx,
-	}
 }
 
 // Compile 将表达式字符串编译成可执行的程序, 需要传入环境变量以便在编译过程中进行变量解析
@@ -49,4 +41,43 @@ func (c *Compiler) GetOrCompile(statement string, env map[string]any) (*vm.Progr
 	}
 	c.cache.Store(statement, program)
 	return program, nil
+}
+
+// RunAsBool 运行表达式并将结果转换为bool类型返回
+func (c *Compiler) RunAsBool(statement string, env map[string]any) (bool, error) {
+	rst, err := c.run(statement, env)
+	if err != nil {
+		return false, err
+	}
+
+	fVal, ok := rst.(bool)
+	if !ok {
+		return false, fmt.Errorf("%s is not bool type", statement)
+	}
+
+	return fVal, nil
+}
+
+// RunWithoutRst 运行表达式并抛弃执行结果
+func (c *Compiler) RunWithoutRst(statement string, env map[string]any) error {
+	_, err := c.run(statement, env)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Compiler) run(statement string, env map[string]any) (any, error) {
+	program, err := c.GetOrCompile(statement, env)
+	if err != nil {
+		return nil, err
+	}
+
+	rst, err := expr.Run(program, env)
+	if err != nil {
+		return false, err
+	}
+
+	return rst, nil
 }

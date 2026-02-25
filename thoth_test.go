@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	thoth "github.com/expr-thoth/expr-thoth"
-	"github.com/expr-thoth/expr-thoth/core"
 	"github.com/expr-thoth/expr-thoth/internal/testutil"
 	"github.com/expr-thoth/expr-thoth/router"
 	"github.com/stretchr/testify/assert"
@@ -29,23 +28,21 @@ func MakeGroupTestConfig() []router.RouteConfig {
 
 func MakeBaseGroupThoth() *thoth.Thoth {
 	ctx := context.Background()
-	thoth := thoth.NewThoth(ctx)
-	thoth.SetBeforePolicy("beforeGroup")
-	thoth.SetAfterPolicy("afterGroup")
+	thothIns := thoth.NewThoth(ctx, thoth.WithBeforePolicy("beforeGroup"), thoth.WithAfterPolicy("afterGroup"))
 
-	thoth.RegisterRouteMap(MakeGroupTestConfig())
+	thothIns.RegisterRouteMap(MakeGroupTestConfig())
 
 	befor := testutil.LoadExampleTestPolicyFile("doc/example/group/before.yaml")
 	after := testutil.LoadExampleTestPolicyFile("doc/example/group/after.yaml")
 	expr1 := testutil.LoadExampleTestPolicyFile("doc/example/group/expr1.yaml")
 	expr2 := testutil.LoadExampleTestPolicyFile("doc/example/group/expr2.yaml")
 
-	thoth.SetGroup("beforeGroup", []*core.PolicyFile{befor})
-	thoth.SetGroup("afterGroup", []*core.PolicyFile{after})
+	thothIns.SetGroup("beforeGroup", []*thoth.PolicyFile{befor})
+	thothIns.SetGroup("afterGroup", []*thoth.PolicyFile{after})
 	// 反向填充策略文件, 执行时应该按照优先级顺序执行
-	thoth.SetGroup("testGroup", []*core.PolicyFile{expr2, expr1})
+	thothIns.SetGroup("testGroup", []*thoth.PolicyFile{expr2, expr1})
 
-	return thoth
+	return thothIns
 }
 
 func TestThoth(t *testing.T) {
@@ -150,15 +147,15 @@ func TestExitGroup(t *testing.T) {
 
 func MakeGrayGroupThoth() *thoth.Thoth {
 	ctx := context.Background()
-	thoth := thoth.NewThoth(ctx)
+	thothIns := thoth.NewThoth(ctx)
 
-	thoth.RegisterRouteMap(MakeGroupTestConfig())
+	thothIns.RegisterRouteMap(MakeGroupTestConfig())
 	disable := testutil.LoadExampleTestPolicyFile("doc/example/gray/disable.yaml")
 	gray := testutil.LoadExampleTestPolicyFile("doc/example/gray/gray.yaml")
 
-	thoth.SetGroup("testGroup", []*core.PolicyFile{disable, gray})
+	thothIns.SetGroup("testGroup", []*thoth.PolicyFile{disable, gray})
 
-	return thoth
+	return thothIns
 }
 
 func TestDisable(t *testing.T) {

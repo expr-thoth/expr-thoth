@@ -42,3 +42,7 @@ func (s *SyncMap) Get(key string) (any, bool) {
 	value, ok := s.data[key]
 	return value, ok
 }
+
+func (s *SyncMap) ToMap() map[string]any {
+	return s.data
+}
