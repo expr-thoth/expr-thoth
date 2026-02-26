@@ -5,10 +5,6 @@ import (
 	"github.com/expr-thoth/expr-thoth/statement"
 )
 
-var (
-	defaultLogger = core.SimpleThothLogger{}
-)
-
 type Option func(opts *Options)
 
 func loadOptions(options ...Option) *Options {
@@ -22,7 +18,7 @@ func loadOptions(options ...Option) *Options {
 	}
 
 	if opts.logger == nil {
-		opts.logger = defaultLogger
+		opts.logger = core.DefaultSimpleThothLogger
 	}
 
 	return opts

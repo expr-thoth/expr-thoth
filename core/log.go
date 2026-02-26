@@ -15,6 +15,8 @@ type ThothLogger interface {
 // 日志默认简单实现 输出到控制台
 type SimpleThothLogger struct{}
 
+var DefaultSimpleThothLogger SimpleThothLogger
+
 func (SimpleThothLogger) ErrorMetrics(ctx context.Context, metricsName string, logContent string, args ...any) {
 	fmt.Printf("[ERROR] [%s] %s\n", metricsName, fmt.Sprintf(logContent, args...))
 }
