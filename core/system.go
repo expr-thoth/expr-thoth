@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/expr-thoth/expr-thoth/core/ds"
@@ -25,7 +26,7 @@ func NewSystem(ctx context.Context, state *ThothState, env map[string]any) *Syst
 }
 
 func (s *System) Log(args ...any) bool {
-	// fmt.Println(args...)
+	fmt.Println(args...)
 	return true
 }
 

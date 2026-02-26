@@ -12,5 +12,4 @@ Action:
   - Name: 写入策略信息
     When: true
     ThenList:
-      - Sys.Log('Gray Policy Triggered')
       - Rsp.SetMsg('gray_policy', '1')

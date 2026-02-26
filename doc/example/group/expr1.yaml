@@ -11,7 +11,6 @@ Filter:
   - Name: 判断事件
     When: Req.GetEvent() == 'event_group_test'
     ThenList:
-      - Sys.Log('Policy01 Triggered')
       - Sys.SetVar('VarControlType', Req.Attrs['ControlType'])
       - Sys.SetVar('VarRole', Req.Attrs['role'])
 Action:
@@ -20,13 +19,11 @@ Action:
       - VarRole == 'admin'
       - Req.UserId == 'alan turing'
     ThenList:
-      - Sys.Log('Welcome, admin!')
       - Rsp.SetMsg('policy_result', 'welcome admin')
       - Sys.Return()
   - Name: 兜底分支
     When: true
     ThenList:
-      - Sys.Log('Access Denied')
       - Rsp.SetMsg('policy_result', 'access denied')
   - Name: ExitGroup判断
     When: VarControlType == 'exit_group'

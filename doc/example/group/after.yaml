@@ -10,8 +10,6 @@ Meta:
 Filter:
   - Name: 判断事件
     When: Req.GetEvent() == 'event_group_test'
-    ThenList:
-      - Sys.Log('Do After Policy')
 Action:
   - Name: 写入后置策略标记
     When: true

@@ -10,7 +10,6 @@ Filter:
   - Name: 判断事件
     When: Req.GetEvent() == 'event_group_test'
     ThenList:
-      - Sys.Log('Before Policy Triggered')
       - Sys.SetVar('VarControlType', Req.Attrs['ControlType'])
 Action:
   - Name: Halt判断

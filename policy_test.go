@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/expr-thoth/expr-thoth"
+	thoth "github.com/expr-thoth/expr-thoth"
 	"github.com/expr-thoth/expr-thoth/core"
 	"github.com/expr-thoth/expr-thoth/internal/testutil"
 	"github.com/expr-thoth/expr-thoth/statement"
@@ -57,5 +57,23 @@ func TestForEach(t *testing.T) {
 	rsp := run(policyFile, cmp, req, env)
 
 	assert.Equal(t, "25", rsp.GetMsg("VarCount"))
+}
 
+func TestThenGroup(t *testing.T) {
+	cmp, policyFile, env := makePolicyFile("doc/example/thenGroup.yaml")
+
+	req := &testutil.Request{
+		Event: "thoth_test_thengroup",
+	}
+
+	// 执行过程中输出日志, 应该是乱序的
+	rsp := run(policyFile, cmp, req, env)
+
+	// 所有写入操作都应该是成功的
+	assert.Equal(t, "10", rsp.GetMsg("A"))
+	assert.Equal(t, "11", rsp.GetMsg("B"))
+	assert.Equal(t, "12", rsp.GetMsg("C"))
+	assert.Equal(t, "13", rsp.GetMsg("D"))
+	assert.Equal(t, "14", rsp.GetMsg("E"))
+	assert.Equal(t, "15", rsp.GetMsg("F"))
 }
