@@ -39,9 +39,18 @@ type PolicyFileFilter struct {
 	WhenAny   []string `yaml:"WhenAny"`
 	ThenList  []string `yaml:"ThenList"`
 	ThenGroup []string `yaml:"ThenGroup"`
+	ForEach   *ForEach `yaml:"ForEach"`
 }
 
 type PolicyFileAction PolicyFileFilter
+
+type ForEach struct {
+	Item     string   `yaml:"Item"`
+	When     string   `yaml:"When"`
+	WhenAll  []string `yaml:"WhenAll"`
+	WhenAny  []string `yaml:"WhenAny"`
+	ThenList []string `yaml:"ThenList"`
+}
 
 // 基于YAML文件加载策略代码到内存
 // YAML文件格式即为策略规范, 其存储方式由调用方决定, 可以是本地文件, 也可以是远程配置中心等
@@ -55,39 +64,33 @@ func NewPolicyFile(yamlStr string) (*PolicyFile, error) {
 	// When条件处理, WhenAll和WhenAny只是语法糖, 其最终会被转换成When条件, 以便后续执行引擎统一处理
 	// 实际策略中, 三种When条件应该只使用一种
 	for _, filter := range policyFile.Filter {
-		if filter.When != "" {
-			continue
-		}
-
-		if len(filter.WhenAll) > 0 {
-			filter.When = strings.Join(filter.WhenAll, "&&")
-			continue
-		}
-
-		if len(filter.WhenAny) > 0 {
-			filter.When = strings.Join(filter.WhenAny, "||")
-			continue
-		}
+		filter.When = mergeWhen(filter.When, filter.WhenAll, filter.WhenAny)
 	}
 
 	for _, action := range policyFile.Action {
-		if action.When != "" {
-			continue
+		action.When = mergeWhen(action.When, action.WhenAll, action.WhenAny)
+		if action.ForEach != nil {
+			action.ForEach.When = mergeWhen(action.ForEach.When, action.ForEach.WhenAll, action.ForEach.WhenAny)
 		}
-
-		if len(action.WhenAll) > 0 {
-			action.When = strings.Join(action.WhenAll, "&&")
-			continue
-		}
-
-		if len(action.WhenAny) > 0 {
-			action.When = strings.Join(action.WhenAny, "||")
-			continue
-		}
-
 	}
 
 	return &policyFile, nil
+}
+
+func mergeWhen(when string, whenAll, whenAny []string) string {
+	if when != "" {
+		return when
+	}
+
+	if len(whenAll) > 0 {
+		return strings.Join(whenAll, "&&")
+	}
+
+	if len(whenAny) > 0 {
+		return strings.Join(whenAny, "||")
+	}
+
+	return ""
 }
 
 // Exec 执行单个策略文件
@@ -106,73 +109,169 @@ func (f *PolicyFile) Exec(cmp *statement.Compiler, req core.Request, rsp *core.R
 	env["Req"] = req
 	env["Rsp"] = rsp
 
-	for _, filter := range f.Filter {
-		fVal, err := cmp.RunAsBool(filter.When, env)
-		if err != nil {
-			return nil, fmt.Errorf("exec filter When with err:%v", err)
-		}
-
-		// 过滤条件不满足不执行后续动作
-		if !fVal {
-			return core.DefaultThothState, nil
-		}
-
-		// 满足条件执行ThenList中的代码
-		for _, then := range filter.ThenList {
-			err := cmp.RunWithoutRst(then, env)
-			if err != nil {
-				return nil, fmt.Errorf("exec filter ThenList with err:%v", err)
-			}
-
-			// Filter不支持Return等操作, 因此不检查
-		}
-
+	// 处理 Filter 阶段
+	if state, err := f.processFilters(cmp, env); err != nil || state != nil {
+		return state, err
 	}
 
-	for _, action := range f.Action {
-		aVal, err := cmp.RunAsBool(action.When, env)
-		if err != nil {
-			return nil, fmt.Errorf("exec action When with err: %v", err)
-		}
-
-		if !aVal {
-			// Action条件不满足时, 仅不执行当前Action的ThenList
-			continue
-		}
-
-		for _, then := range action.ThenList {
-			err := cmp.RunWithoutRst(then, env)
-			if err != nil {
-				return nil, fmt.Errorf("exec action ThenList with err: %v", err)
-			}
-
-			// 终止状态检测
-			state := f.getState(env)
-			if state.IsReturn || state.IsExitGroup || state.IsHalt {
-				// 结束当前策略文件的执行, 重置Return状态
-				// 由上层的执行器判断是否继续执行分组内的其他策略文件
-				state.IsReturn = false
-				return state, nil
-			}
-		}
-
-		if len(action.ThenGroup) > 0 {
-			tasks := make([]Task, 0, len(action.ThenGroup))
-			for _, then := range action.ThenGroup {
-				t := then
-				tasks = append(tasks, func() error {
-					// 并发执行不支持执行流控制, 因此无需检查状态
-					return cmp.RunWithoutRst(t, env)
-				})
-			}
-			GoAndWait(tasks...)
-		}
+	// 处理 Action 阶段
+	if state, err := f.processActions(cmp, env); err != nil || state != nil {
+		return state, err
 	}
 
 	return f.getState(env), nil
 }
 
-// // 获取当前执行器的状态, 供外部查询
-func (e *PolicyFile) getState(env map[string]any) *core.ThothState {
+// processFilters 处理所有 Filter，返回需要提前终止的状态或错误
+func (f *PolicyFile) processFilters(cmp *statement.Compiler, env map[string]any) (*core.ThothState, error) {
+	for _, filter := range f.Filter {
+		// 执行条件判断
+		ok, err := execCondition(cmp, filter.When, env)
+		if err != nil {
+			return nil, fmt.Errorf("exec filter When: %w", err)
+		}
+		if !ok {
+			return core.DefaultThothState, nil // 条件不满足, 策略文件停止执行
+		}
+
+		// 执行 ThenList 并检查是否需要提前返回
+		if state, err := f.execThenListWithState(cmp, filter.ThenList, env); err != nil || state != nil {
+			return state, err
+		}
+	}
+	return nil, nil
+}
+
+// processActions 处理所有 Action，返回需要提前终止的状态或错误
+func (f *PolicyFile) processActions(cmp *statement.Compiler, env map[string]any) (*core.ThothState, error) {
+	for _, action := range f.Action {
+		// 判断当前 Action 是否满足条件
+		ok, err := execCondition(cmp, action.When, env)
+		if err != nil {
+			return nil, fmt.Errorf("exec action When: %w", err)
+		}
+		if !ok {
+			// 条件不满足, 继续执行下一个Action
+			continue
+		}
+
+		// 执行 ThenList
+		if state, err := f.execThenListWithState(cmp, action.ThenList, env); err != nil || state != nil {
+			return state, err
+		}
+
+		// 执行 ThenGroup
+		// 并发执行, 不检查状态
+		if err := execThenGroup(cmp, action.ThenGroup, env); err != nil {
+			return nil, fmt.Errorf("exec action ThenGroup: %w", err)
+		}
+
+		// 执行 ForEach
+		if action.ForEach != nil {
+			if state, err := f.execForEach(cmp, action.ForEach, env); err != nil || state != nil {
+				return state, err
+			}
+		}
+	}
+	return nil, nil
+}
+
+// execCondition 执行条件语句并返回布尔结果
+func execCondition(cmp *statement.Compiler, when string, env map[string]any) (bool, error) {
+	val, err := cmp.RunAsBool(when, env)
+	if err != nil {
+		return false, err
+	}
+	return val, nil
+}
+
+// execThenList 执行一个 ThenList，返回是否需要提前终止（bool）和错误
+func (f *PolicyFile) execThenList(cmp *statement.Compiler, thenList []string, env map[string]any) (bool, error) {
+	for _, then := range thenList {
+		if err := cmp.RunWithoutRst(then, env); err != nil {
+			return false, err
+		}
+		state := f.getState(env)
+		if state.IsReturn || state.IsExitGroup || state.IsHalt {
+			state.IsReturn = false // 重置Return标志
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// execThenListWithState 执行 ThenList，若需提前终止则直接返回状态
+func (f *PolicyFile) execThenListWithState(cmp *statement.Compiler, thenList []string, env map[string]any) (*core.ThothState, error) {
+	needReturn, err := f.execThenList(cmp, thenList, env)
+	if err != nil {
+		return nil, err
+	}
+	if needReturn {
+		return f.getState(env), nil
+	}
+	return nil, nil
+}
+
+// execThenGroup 并发执行 ThenGroup
+func execThenGroup(cmp *statement.Compiler, thenGroup []string, env map[string]any) error {
+	if len(thenGroup) == 0 {
+		return nil
+	}
+
+	tasks := make([]Task, 0, len(thenGroup))
+	for _, then := range thenGroup {
+		t := then
+		tasks = append(tasks, func() error {
+			return cmp.RunWithoutRst(t, env)
+		})
+	}
+	return GoAndWait(tasks...)
+}
+
+// execForEach 处理 ForEach 逻辑
+func (f *PolicyFile) execForEach(cmp *statement.Compiler, fe *ForEach, env map[string]any) (*core.ThothState, error) {
+	itemRaw, err := cmp.Run(fe.Item, env)
+	if err != nil {
+		return nil, fmt.Errorf("exec ForEach Item: %w", err)
+	}
+
+	// 统一处理不同类型的集合
+	switch items := itemRaw.(type) {
+	case []any:
+		for k, v := range items {
+			if state, err := f.execForEachItem(cmp, fe, k, v, env); err != nil || state != nil {
+				return state, err
+			}
+		}
+	case map[string]any:
+		for k, v := range items {
+			if state, err := f.execForEachItem(cmp, fe, k, v, env); err != nil || state != nil {
+				return state, err
+			}
+		}
+	default:
+		return nil, fmt.Errorf("ForEach item must be array or map, got %T", itemRaw)
+	}
+	return nil, nil
+}
+
+// execForEachItem 处理 ForEach 中的单个元素
+func (f *PolicyFile) execForEachItem(cmp *statement.Compiler, fe *ForEach, k any, v any, env map[string]any) (*core.ThothState, error) {
+	env["k"] = k
+	env["v"] = v
+
+	ok, err := execCondition(cmp, fe.When, env)
+	if err != nil {
+		return nil, fmt.Errorf("exec ForEach When: %w", err)
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	// 执行该元素对应的 ThenList
+	return f.execThenListWithState(cmp, fe.ThenList, env)
+}
+
+func (f *PolicyFile) getState(env map[string]any) *core.ThothState {
 	return env["ThothState"].(*core.ThothState)
 }

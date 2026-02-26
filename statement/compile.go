@@ -45,7 +45,7 @@ func (c *Compiler) GetOrCompile(statement string, env map[string]any) (*vm.Progr
 
 // RunAsBool 运行表达式并将结果转换为bool类型返回
 func (c *Compiler) RunAsBool(statement string, env map[string]any) (bool, error) {
-	rst, err := c.run(statement, env)
+	rst, err := c.Run(statement, env)
 	if err != nil {
 		return false, err
 	}
@@ -60,7 +60,7 @@ func (c *Compiler) RunAsBool(statement string, env map[string]any) (bool, error)
 
 // RunWithoutRst 运行表达式并抛弃执行结果
 func (c *Compiler) RunWithoutRst(statement string, env map[string]any) error {
-	_, err := c.run(statement, env)
+	_, err := c.Run(statement, env)
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func (c *Compiler) RunWithoutRst(statement string, env map[string]any) error {
 	return nil
 }
 
-func (c *Compiler) run(statement string, env map[string]any) (any, error) {
+func (c *Compiler) Run(statement string, env map[string]any) (any, error) {
 	program, err := c.GetOrCompile(statement, env)
 	if err != nil {
 		return nil, err
