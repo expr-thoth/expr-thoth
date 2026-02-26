@@ -2,6 +2,7 @@ package thoth
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/expr-thoth/expr-thoth/core"
@@ -235,22 +236,28 @@ func (f *PolicyFile) execForEach(cmp *statement.Compiler, fe *ForEach, env map[s
 		return nil, fmt.Errorf("exec ForEach Item: %w", err)
 	}
 
-	// 统一处理不同类型的集合
-	switch items := itemRaw.(type) {
-	case []any:
-		for k, v := range items {
+	// 使用反射统一处理不同类型的集合
+	rv := reflect.ValueOf(itemRaw)
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < rv.Len(); i++ {
+			k := i
+			v := rv.Index(i).Interface()
 			if state, err := f.execForEachItem(cmp, fe, k, v, env); err != nil || state != nil {
 				return state, err
 			}
 		}
-	case map[string]any:
-		for k, v := range items {
+	case reflect.Map:
+		iter := rv.MapRange()
+		for iter.Next() {
+			k := iter.Key().Interface()
+			v := iter.Value().Interface()
 			if state, err := f.execForEachItem(cmp, fe, k, v, env); err != nil || state != nil {
 				return state, err
 			}
 		}
 	default:
-		return nil, fmt.Errorf("ForEach item must be array or map, got %T", itemRaw)
+		return nil, fmt.Errorf("ForEach item must be slice, array or map, got %T", itemRaw)
 	}
 	return nil, nil
 }

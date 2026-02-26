@@ -9,20 +9,34 @@ import (
 	"github.com/expr-thoth/expr-thoth/core"
 	"github.com/expr-thoth/expr-thoth/internal/testutil"
 	"github.com/expr-thoth/expr-thoth/statement"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestExecBase(t *testing.T) {
-	ctx := context.Background()
-	cmp := &statement.Compiler{}
-
-	yamlStr, err := os.ReadFile("doc/example/expr.yaml")
+func makePolicyFile(name string) (*statement.Compiler, *thoth.PolicyFile, map[string]any) {
+	yamlStr, err := os.ReadFile(name)
 	if err != nil {
-		t.Fatalf("Failed to read YAML file: %v", err)
+		panic(err)
 	}
 	policyFile, err := thoth.NewPolicyFile(string(yamlStr))
 	if err != nil {
-		t.Fatalf("Failed to load YAML: %v", err)
+		panic(err)
 	}
+
+	return &statement.Compiler{}, policyFile, thoth.MakeEnv(context.Background())
+}
+
+func run(policyFile *thoth.PolicyFile, cmp *statement.Compiler, req *testutil.Request, env map[string]any) *core.Response {
+	rsp := &core.Response{}
+	_, err := policyFile.Exec(cmp, req, rsp, env)
+	if err != nil {
+		panic(err)
+	}
+
+	return rsp
+}
+
+func TestExecBase(t *testing.T) {
+	cmp, policyFile, env := makePolicyFile("doc/example/expr.yaml")
 
 	req := &testutil.Request{
 		Event:  "user_login_check",
@@ -30,10 +44,18 @@ func TestExecBase(t *testing.T) {
 		Attrs:  map[string]string{"role": "admin"},
 	}
 
-	rsp := &core.Response{}
-	_, err = policyFile.Exec(cmp, req, rsp, thoth.MakeEnv(ctx))
-	if err != nil {
-		t.Fatalf("Failed to execute policy: %v", err)
+	run(policyFile, cmp, req, env)
+}
+
+func TestForEach(t *testing.T) {
+	cmp, policyFile, env := makePolicyFile("doc/example/foreach.yaml")
+
+	req := &testutil.Request{
+		Event: "thoth_test_foreach",
 	}
+
+	rsp := run(policyFile, cmp, req, env)
+
+	assert.Equal(t, "25", rsp.GetMsg("VarCount"))
 
 }
