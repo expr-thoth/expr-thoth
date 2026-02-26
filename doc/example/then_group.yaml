@@ -7,7 +7,7 @@ Meta:
   Owner: lizec
 Filter:
   - Name: 判断事件
-    When: Req.GetEvent() == 'thoth_test_thengroup'
+    When: Req.GetEvent() == 'event_test_thengroup'
 Action:
   - Name: 设置基础标记
     When: true

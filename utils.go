@@ -27,11 +27,11 @@ func GoAndWait(tasks ...Task) error {
 				}
 			}()
 
-			wg.Done()
 			if err := f(); err != nil {
 				errChan <- err
 			}
 
+			wg.Done()
 		}()
 	}
 
