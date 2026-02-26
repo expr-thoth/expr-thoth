@@ -6,10 +6,10 @@ import (
 )
 
 type RouteConfig struct {
-	ActionList []string
-	GroupList  []string
-	Enabled    bool
-	Priority   int
+	EventList []string
+	GroupList []string
+	Enabled   bool
+	Priority  int
 }
 
 type groupItem struct {
@@ -28,15 +28,15 @@ func New(configs []RouteConfig) RouteMap {
 			continue
 		}
 
-		for _, action := range config.ActionList {
+		for _, event := range config.EventList {
 			for _, group := range config.GroupList {
-				tempMap[action] = append(tempMap[action], groupItem{Name: parseGroupName(action, group), Priority: config.Priority})
+				tempMap[event] = append(tempMap[event], groupItem{Name: parseGroupName(event, group), Priority: config.Priority})
 			}
 		}
 	}
 
 	routeMap := make(RouteMap, len(tempMap))
-	for action, groupItems := range tempMap {
+	for event, groupItems := range tempMap {
 		// 按照优先级排序, 优先级数值越大优先执行
 		sort.Slice(groupItems, func(i, j int) bool {
 			return groupItems[i].Priority > groupItems[j].Priority
@@ -46,13 +46,13 @@ func New(configs []RouteConfig) RouteMap {
 		for i, item := range groupItems {
 			groupNames[i] = item.Name
 		}
-		routeMap[action] = groupNames
+		routeMap[event] = groupNames
 	}
 
 	return routeMap
 }
 
-// 解析分组名称, 支持动态参数, 例如: $符号表示当前Action
-func parseGroupName(action, group string) string {
-	return strings.ReplaceAll(group, "$", action)
+// 解析分组名称, 支持动态参数, 例如: $符号表示当前Event
+func parseGroupName(event, group string) string {
+	return strings.ReplaceAll(group, "$", event)
 }

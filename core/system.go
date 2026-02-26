@@ -25,6 +25,7 @@ func NewSystem(ctx context.Context, state *ThothState, env map[string]any) *Syst
 	}
 }
 
+// 调试日志函数, 输出日志到控制台
 func (s *System) Log(args ...any) bool {
 	fmt.Println(args...)
 	return true

@@ -14,10 +14,10 @@ func MakeGroupTestConfig() []router.RouteConfig {
 	rst := make([]router.RouteConfig, 0)
 
 	config := router.RouteConfig{
-		ActionList: []string{"event_group_test"},
-		GroupList:  []string{"testGroup"},
-		Enabled:    true,
-		Priority:   100,
+		EventList: []string{"event_group_test"},
+		GroupList: []string{"testGroup"},
+		Enabled:   true,
+		Priority:  100,
 	}
 
 	rst = append(rst, config)
