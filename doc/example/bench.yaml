@@ -1,0 +1,22 @@
+Meta:
+  ID: 1001
+  Name: 基准测试策略文件
+  Enabled: true
+  GrayCount: 10000
+  Priority: 100
+  Owner: lizec
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_benchmark_test'
+Action:
+  - Name: 模拟条件判断
+    When: duration("1h").Seconds() == 3600
+    ThenList:
+      - Sys.SetVar('VarRole', Req.Attrs['role'])
+  - Name: 模拟条件判断
+    WhenAll:
+      - VarRole == 'admin'
+      - Req.UserId == 'alan turing'
+    ThenList:
+      - Rsp.SetCode(200)
+      - Rsp.SetMsg('policy_result', 'welcome turing')

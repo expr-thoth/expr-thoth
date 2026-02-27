@@ -122,3 +122,18 @@ func TestLog(t *testing.T) {
 		panic(err)
 	}
 }
+
+func BenchmarkBase(b *testing.B) {
+	cmp, policyFile, _ := makePolicyFile("doc/example/bench.yaml")
+
+	req := &testutil.Request{
+		Event:  "user_login_check",
+		UserId: "alan turing",
+		Attrs:  map[string]string{"role": "admin"},
+	}
+
+	for b.Loop() {
+		env := thoth.MakeEnv(context.Background())
+		run(policyFile, cmp, req, env)
+	}
+}
