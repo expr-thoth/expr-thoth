@@ -1,0 +1,24 @@
+Meta:
+  ID: 1001
+  Name: 前置测试策略
+  Enabled: true
+  GrayCount: 10000
+  Priority: 900
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_flow_test'
+    ThenList:
+      - Sys.SetVar('VarControlType', Req.Attrs['ControlType'])
+Action:
+  - Name: Halt判断
+    When: VarControlType == 'halt'
+    ThenList:
+      - Rsp.SetMsg('before_halt', '1') 
+      - Sys.Halt()
+      # 应该不执行此代码
+      - Rsp.SetMsg('after_halt', '1') 
+  - Name: 兜底分支
+    When: true 
+    ThenList:
+      # 文件中的其他Action也不执行
+      - Rsp.SetMsg('after_halt_other_action', '1')

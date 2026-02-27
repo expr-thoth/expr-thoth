@@ -1,0 +1,28 @@
+Meta:
+  ID: 1004
+  Name: 后置测试策略
+  Enabled: true
+  GrayCount: 10000
+  Priority: 300
+  Owner: lizec
+  Description: |
+    无论前置策略执行情况如何, 后置策略始终保证执行
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_group_test'
+Action:
+  - Name: 写入后置策略标记
+    When: true
+    ThenList:
+      - Rsp.SetMsg('after_policy', '1')
+  - Name: Return测试
+    When: true
+    ThenList:
+      - Rsp.SetMsg('before_return_thenlist', '1')
+      - Sys.Return()
+      - Rsp.SetMsg('after_return_thenlist', '1')
+  - Name: 兜底分支
+    When: true
+    ThenList:
+      # 如果命中, 则文件中的其他Action也不执行
+      - Rsp.SetMsg('after_return_action', '1')

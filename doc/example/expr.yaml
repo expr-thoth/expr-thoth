@@ -23,10 +23,5 @@ Action:
       - VarRole == 'admin'
       - Req.UserId == 'alan turing'
     ThenList:
-      - Sys.Log('Welcome, admin!')
-      - Sys.Return()
-  - Name: 兜底分支
-    When: true
-    ThenList:
-      - Sys.Log('Access Denied')
-      - Sys.Return()
+      - Rsp.SetCode(200)
+      - Rsp.SetMsg('policy_result', 'welcome turing')

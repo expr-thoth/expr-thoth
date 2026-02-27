@@ -1,0 +1,15 @@
+Meta:
+  ID: 1002
+  Name: 前置测试策略
+  Enabled: true
+  GrayCount: 10000
+  Priority: 100
+Filter:
+  - Name: 判断事件
+    When: Req.GetEvent() == 'event_flow_test'
+Action:
+  - Name: 设置属性
+    When: true 
+    ThenList:
+      # 如果已经Exit, 则此属性也不会设置
+      - Rsp.SetMsg('main_policy_02', '1')

@@ -155,3 +155,112 @@ func TestGray(t *testing.T) {
 	assert.NotEqual(t, "1", rsp.GetMsg("disable_policy"))
 	assert.NotEqual(t, "1", rsp.GetMsg("gray_policy"))
 }
+
+func MakeFlowGroupThoth() *thoth.Thoth {
+	thothIns := thoth.NewThoth(thoth.WithBeforePolicy("beforeFlow"), thoth.WithAfterPolicy("afterFlow"))
+
+	// 注册路由配置
+	routeConfig := router.RouteConfig{
+		EventList: []string{"event_flow_test"},
+		GroupList: []string{"mainFlow"},
+		Enabled:   true,
+		Priority:  100,
+	}
+	thothIns.RegisterRouteMap([]router.RouteConfig{routeConfig})
+
+	// 加载 flow 相关的策略文件
+	before1 := testutil.LoadExampleTestPolicyFile("doc/example/flow/before/01.yaml")
+	before2 := testutil.LoadExampleTestPolicyFile("doc/example/flow/before/02.yaml")
+	after := testutil.LoadExampleTestPolicyFile("doc/example/flow/after.yaml")
+	main1 := testutil.LoadExampleTestPolicyFile("doc/example/flow/main/01.yaml")
+	main2 := testutil.LoadExampleTestPolicyFile("doc/example/flow/main/02.yaml")
+
+	// 设置策略组
+	thothIns.SetGroup("beforeFlow", []*thoth.PolicyFile{before1, before2})
+	thothIns.SetGroup("afterFlow", []*thoth.PolicyFile{after})
+	thothIns.SetGroup("mainFlow", []*thoth.PolicyFile{main1, main2})
+
+	return thothIns
+}
+
+func TestFlowControl(t *testing.T) {
+	ctx := context.Background()
+	thothIns := MakeFlowGroupThoth()
+
+	req := &testutil.Request{
+		Event: "event_flow_test",
+		Attrs: map[string]string{"ControlType": "normal"},
+	}
+
+	rsp, err := thothIns.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("Failed to execute policy: %v", err)
+	}
+
+	// 测试正常执行情况
+	assert.Equal(t, "1", rsp.GetMsg("befeore_policy_02"))
+	assert.Equal(t, "1", rsp.GetMsg("main_policy_02"))
+}
+
+func TestFlowHalt(t *testing.T) {
+	ctx := context.Background()
+	thothIns := MakeFlowGroupThoth()
+
+	req := &testutil.Request{
+		Event: "event_flow_test",
+		Attrs: map[string]string{"ControlType": "halt"},
+	}
+
+	rsp, err := thothIns.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("Failed to execute policy: %v", err)
+	}
+
+	// 测试 Halt 功能
+	assert.Equal(t, "1", rsp.GetMsg("before_halt"))
+	assert.Empty(t, rsp.GetMsg("after_halt"))
+	assert.Empty(t, rsp.GetMsg("after_halt_other_action"))
+	assert.Empty(t, rsp.GetMsg("befeore_policy_02"))
+	assert.Empty(t, rsp.GetMsg("main_policy_02"))
+}
+
+func TestFlowExitGroup(t *testing.T) {
+	ctx := context.Background()
+	thothIns := MakeFlowGroupThoth()
+
+	req := &testutil.Request{
+		Event: "event_flow_test",
+		Attrs: map[string]string{"ControlType": "exit_group"},
+	}
+
+	rsp, err := thothIns.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("Failed to execute policy: %v", err)
+	}
+
+	// 测试 ExitGroup 功能
+	assert.Equal(t, "1", rsp.GetMsg("exit_group_thenlist"))
+	assert.Empty(t, rsp.GetMsg("after_exit_group_thenlist"))
+	assert.Empty(t, rsp.GetMsg("after_exit_group_action"))
+	assert.Empty(t, rsp.GetMsg("main_policy_02"))
+}
+
+func TestFlowReturn(t *testing.T) {
+	ctx := context.Background()
+	thothIns := MakeFlowGroupThoth()
+
+	req := &testutil.Request{
+		Event: "event_group_test",
+	}
+
+	rsp, err := thothIns.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("Failed to execute policy: %v", err)
+	}
+
+	// 测试 Return 功能
+	assert.Equal(t, "1", rsp.GetMsg("after_policy"))
+	assert.Equal(t, "1", rsp.GetMsg("before_return_thenlist"))
+	assert.Empty(t, rsp.GetMsg("after_return_thenlist"))
+	assert.Empty(t, rsp.GetMsg("after_return_action"))
+}

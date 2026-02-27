@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime/debug"
 	"sync/atomic"
 
 	"github.com/expr-thoth/expr-thoth/core"
@@ -72,36 +71,48 @@ func (t *Thoth) SetGroup(groupName string, policyFiles []*PolicyFile) {
 
 // 策略入口函数, 其执行流程为: 前置策略 -> 路由分组策略 -> 后置策略
 func (t *Thoth) Execute(ctx context.Context, req core.Request) (*core.Response, error) {
-	groups := []string{}
-
-	if g := t.options.beforePolicyGroupName; g != "" {
-		groups = append(groups, g)
-	}
-
-	if m := t.routeMap.Load(); m != nil {
-		routeMap := *m
-		// 从路由表中获取目标分组名
-		groupNames := routeMap[req.GetEvent()]
-		groups = append(groups, groupNames...)
-	}
-
 	rsp := &core.Response{}
 	errs := []error{}
-	asyncFiles := make([]*PolicyFile, 0)
-	for _, g := range groups {
+	var asyncFiles []*PolicyFile
+	var isHalt bool
+
+	// 执行前置策略
+	if g := t.options.beforePolicyGroupName; g != "" {
 		state, files, err := t.executor.Exec(ctx, g, req, rsp)
 		if err != nil {
 			errs = append(errs, err)
-			// 执行错误 记录错误信息, 继续执行后续分组
 		}
-
-		// 收集需要异步执行的策略文件
-		asyncFiles = append(asyncFiles, files...)
-
+		if len(files) > 0 {
+			asyncFiles = files
+		}
 		if state.IsHalt {
-			// 策略内Halt, 终止策略分组执行, 但还需要执行后置策略
-			state.IsHalt = false
-			break
+			isHalt = true
+		}
+	}
+
+	// 执行路由分组策略
+	if !isHalt {
+		if m := t.routeMap.Load(); m != nil {
+			routeMap := *m
+			// 从路由表中获取目标分组名
+			groupNames := routeMap[req.GetEvent()]
+			for _, g := range groupNames {
+				state, files, err := t.executor.Exec(ctx, g, req, rsp)
+				if err != nil {
+					errs = append(errs, err)
+				}
+				if len(files) > 0 {
+					if asyncFiles == nil {
+						asyncFiles = files
+					} else {
+						asyncFiles = append(asyncFiles, files...)
+					}
+				}
+				if state.IsHalt {
+					isHalt = true
+					break
+				}
+			}
 		}
 	}
 
@@ -111,31 +122,33 @@ func (t *Thoth) Execute(ctx context.Context, req core.Request) (*core.Response, 
 		if err != nil {
 			errs = append(errs, err)
 		}
-		asyncFiles = append(asyncFiles, files...)
-	}
-
-	// 策略异步执行（解耦主链路耗时+保障并发安全）
-	// 1. 主链路逻辑完成后异步执行策略, 不阻塞主链路返回, 降低接口耗时
-	// 2. asyncFiles已按策略优先级排序, 遍历执行可保证策略执行顺序符合预期
-	// 3. 统一在单个异步协程中执行所有策略, 避免多协程并发读写req/env等变量
-	// 4. 使用WithoutCancel创建新ctx, 脱离主链路超时控制, 确保异步策略完整执行
-	// 5. 每个策略执行时做panic捕获, 避免单个策略panic导致整个异步协程终止
-	newCtx := context.WithoutCancel(ctx)
-	asyncPolicyPool.Submit(func() {
-		for _, policyFile := range asyncFiles {
-			defer func() {
-				if r := recover(); r != nil {
-					t.options.logger.ErrorMetrics(ctx, "Thoth.Panic", "msg: %v\nstack: %v\n", r, string(debug.Stack()))
-				}
-			}()
-
-			env := MakeEnv(newCtx)
-			_, err := policyFile.Exec(t.options.cmp, req, rsp, env)
-			if err != nil {
-				t.options.logger.ErrorMetrics(newCtx, "Thoth.Executor.Exec.Error", "async policy %s exec with err: %v", policyFile.Meta.ID, err)
+		if len(files) > 0 {
+			if asyncFiles == nil {
+				asyncFiles = files
+			} else {
+				asyncFiles = append(asyncFiles, files...)
 			}
 		}
-	})
+	}
+
+	if len(asyncFiles) > 0 {
+		// 策略异步执行（解耦主链路耗时+保障并发安全）
+		// 1. 主链路逻辑完成后异步执行策略, 不阻塞主链路返回, 降低接口耗时
+		// 2. asyncFiles已按策略优先级排序, 遍历执行可保证策略执行顺序符合预期
+		// 3. 统一在单个异步协程中执行所有策略, 避免多协程并发读写req/env等变量
+		// 4. 使用WithoutCancel创建新ctx, 脱离主链路超时控制, 确保异步策略完整执行
+		// 5. 异步策略执行时, 主链路已结束, 因此不可访问rsp
+		newCtx := context.WithoutCancel(ctx)
+		asyncPolicyPool.Submit(func() {
+			for _, policyFile := range asyncFiles {
+				env := MakeEnv(newCtx)
+				_, err := policyFile.Exec(t.options.cmp, req, nil, env)
+				if err != nil {
+					t.options.logger.ErrorMetrics(newCtx, "Thoth.Executor.Exec.Error", "async policy %s exec with err: %v", policyFile.Meta.ID, err)
+				}
+			}
+		})
+	}
 
 	return rsp, errors.Join(errs...)
 }
