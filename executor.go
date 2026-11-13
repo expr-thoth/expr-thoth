@@ -67,6 +67,12 @@ func (e *Executor) Exec(ctx context.Context, groupName string, req core.Request,
 		if err != nil {
 			errs = append(errs, fmt.Errorf("exec group %v with err: %v", policyGroup.Name, err))
 			// 执行错误继续执行后续策略, 以保证单个策略错误不影响整体策略执行
+			continue
+		}
+
+		if state == nil {
+			// 状态变量无效, 也跳过
+			continue
 		}
 
 		if state.IsExitGroup || state.IsHalt {
